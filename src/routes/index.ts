@@ -1,11 +1,13 @@
-import { register } from '../controllers/auth';
+import { login, register } from '../controllers/auth';
 
-const express = require('express');
+import { Router, Response } from 'express';
 
-const router = express.Router();
+const router = Router();
 
 //AUTH
 
 router.post('/register', register);
+router.post('/login', login);
 
+router.get('/', (_, res: Response) => res.json('path live 🚀'));
 export default router;
