@@ -1,4 +1,6 @@
 import bcrypt from 'bcrypt';
+import validate from 'deep-email-validator';
+import { Response } from 'express';
 
 export const hashPassword = (password: string) => {
    return new Promise((resolve, reject) => {
@@ -33,3 +35,11 @@ export default function isPasswordAllowed(password: string) {
       /[a-z]/.test(password)
    );
 }
+
+export const emailValidtion = async (email: string, res: Response) => {
+   const { valid } = await validate(email);
+
+   if (!valid) {
+      return res.status(400).json({ message: `Please provide a valid email address.` });
+   }
+};
