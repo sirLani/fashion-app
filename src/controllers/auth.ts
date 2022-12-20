@@ -1,8 +1,9 @@
 import User from '../models/user';
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import isPasswordAllowed, { hashPassword, comparePassword } from '../helpers/auth';
 import Jwt from 'jsonwebtoken';
 import { env } from '../config/config';
+import { IGetUserAuthInfoRequest } from '../types';
 
 export const register = async (req: Request, res: Response) => {
    console.log('REGISTER ENDPOINT => ', req.body);
@@ -15,13 +16,9 @@ export const register = async (req: Request, res: Response) => {
       });
    }
    if (!isPasswordAllowed(password)) {
-      return res.status(400).json({ message: `password is not strong enough, it has to contain a capital letter, small letter and non-alphanumeric` });
+      return res.status(400).json({ error: `password is not strong enough, it has to contain a capital letter, small letter and non-alphanumeric` });
    }
-   if (!password || password.length < 6) {
-      return res.status(400).json({
-         error: 'Password is required and should be min 6 characters long'
-      });
-   }
+
    if (!secret) {
       return res.status(400).json({
          error: 'Secret answer is required'
@@ -99,5 +96,54 @@ export const login = async (req: Request, res: Response) => {
    } catch (err) {
       console.log(err);
       return res.status(400).send('Error. Try again.');
+   }
+};
+
+export const currentUser = async (req: IGetUserAuthInfoRequest, res: Response) => {
+   // console.log(req.auth);
+   try {
+      const user = await User.findById(req.auth._id);
+      // res.json(user);
+      res.json({ ok: true });
+   } catch (err) {
+      console.log(err);
+      res.sendStatus(400);
+   }
+};
+
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+   console.log(req.body);
+   const { email, newPassword, secret } = req.body;
+   // validation
+   if (!isPasswordAllowed(newPassword)) {
+      return res.status(400).json({
+         error: 'New password is required and should contain a capital letter, small letter and non-alphanumeric'
+      });
+   }
+   if (!secret) {
+      return res.status(400).json({
+         error: 'Secret is required'
+      });
+   }
+   let user = await User.findOne({ email, secret });
+   // console.log("EXIST ----->", user);
+   if (!user) {
+      return res.status(400).json({
+         error: 'this user exists We cant verify you with those details'
+      });
+   }
+   // return res.status(400).send("We cant verify you with those details");
+
+   try {
+      const hashed = await hashPassword(newPassword);
+      await User.findByIdAndUpdate(user._id, { password: hashed });
+      return res.json({
+         success: 'Congrats. Now you can login with your new password'
+      });
+   } catch (err) {
+      console.log(err);
+      return res.json({
+         error: 'Something wrong. Try again.'
+      });
    }
 };
