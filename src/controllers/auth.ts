@@ -1,15 +1,22 @@
 import User from '../models/user';
-import { NextFunction, Request, Response } from 'express';
-import isPasswordAllowed, { hashPassword, comparePassword } from '../helpers/auth';
+import { Request, Response } from 'express';
+import isPasswordAllowed, { hashPassword, comparePassword, emailValidtion } from '../helpers/auth';
 import Jwt from 'jsonwebtoken';
 import { env } from '../config/config';
 import { IGetUserAuthInfoRequest } from '../types';
+import validate from 'deep-email-validator';
 
 export const register = async (req: Request, res: Response) => {
    console.log('REGISTER ENDPOINT => ', req.body);
 
    const { name, email, password, secret } = req.body;
    // validation
+   if (!email) {
+      return res.status(400).json({ message: `email has to be filled` });
+   }
+
+   await emailValidtion(email, res);
+
    if (!name) {
       return res.status(400).json({
          error: 'Name is required'
@@ -24,6 +31,7 @@ export const register = async (req: Request, res: Response) => {
          error: 'Secret answer is required'
       });
    }
+
    const exist = await User.findOne({ email });
    if (exist) {
       return res.status(400).json({
@@ -59,6 +67,8 @@ export const login = async (req: Request, res: Response) => {
    if (!email) {
       return res.status(400).json({ message: `email has to be filled` });
    }
+   await emailValidtion(email, res);
+
    if (!password) {
       return res.status(400).json({ message: `password can't be blank` });
    }
@@ -102,7 +112,7 @@ export const login = async (req: Request, res: Response) => {
 export const currentUser = async (req: IGetUserAuthInfoRequest, res: Response) => {
    // console.log(req.auth);
    try {
-      const user = await User.findById(req.auth._id);
+      const user = await User.findById(req.auth?._id);
       // res.json(user);
       res.json({ ok: true });
    } catch (err) {
@@ -111,10 +121,16 @@ export const currentUser = async (req: IGetUserAuthInfoRequest, res: Response) =
    }
 };
 
-export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+export const forgotPassword = async (req: Request, res: Response) => {
    console.log(req.body);
    const { email, newPassword, secret } = req.body;
    // validation
+   if (!email) {
+      return res.status(400).json({ message: `email has to be filled` });
+   }
+
+   await emailValidtion(email, res);
+
    if (!isPasswordAllowed(newPassword)) {
       return res.status(400).json({
          error: 'New password is required and should contain a capital letter, small letter and non-alphanumeric'
@@ -145,5 +161,55 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
       return res.json({
          error: 'Something wrong. Try again.'
       });
+   }
+};
+
+export const profileUpdate = async (req: IGetUserAuthInfoRequest, res: Response) => {
+   try {
+      // console.log("profile update req.body", req.body);
+
+      const { username, about, name, password, secret, image } = req.body;
+      const data = {
+         username: '',
+         about: '',
+         name: '',
+         password: '',
+         secret: '',
+         image: ''
+      };
+
+      if (req.body.username) {
+         data.username = username;
+      }
+      if (req.body.about) {
+         data.about = about;
+      }
+      if (req.body.name) {
+         data.name = name;
+      }
+      if (password) {
+         if (!isPasswordAllowed(password)) {
+            return res.status(400).json({ error: `password is not strong enough, it has to contain a capital letter, small letter and non-alphanumeric` });
+         } else {
+            data.password = (await hashPassword(req.body.password)) as string;
+         }
+      }
+      if (req.body.secret) {
+         data.secret = req.body.secret;
+      }
+      if (req.body.image) {
+         data.image = req.body.image;
+      }
+
+      let user = await User.findByIdAndUpdate(req.auth?._id, data, { new: true });
+      // console.log('udpated user', user)
+      user.password = undefined;
+      user.secret = undefined;
+      res.json(user);
+   } catch (err: any) {
+      if (err.code == 11000) {
+         return res.json({ error: 'Duplicate username' });
+      }
+      console.log(err);
    }
 };

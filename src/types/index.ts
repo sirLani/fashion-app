@@ -1,6 +1,6 @@
 import { Request } from 'express';
 export interface IGetUserAuthInfoRequest extends Request {
-   auth: {
+   auth?: {
       _id: String;
    }; // or any other type
 }
